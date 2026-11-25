@@ -1,0 +1,6 @@
+diff --git a/BoardConfig.mk b/BoardConfig.mk
+--- a/BoardConfig.mk
++++ b/BoardConfig.mk
+@@ -88 +88 @@
+-TW_EXTRA_LANGUAGES := true
++TW_EXTRA_LANGUAGES :=

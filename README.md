@@ -25,7 +25,9 @@ Run the following from the repository root.
 bash scripts/build.sh "$HOME/orangefox-p3s-build" "$HOME/orangefox-p3s-artifacts"
 ```
 
-The output directory receives `OrangeFox-R12.0-Unofficial-p3s-May-kernel.tar`, its SHA-256 checksum, and a record of the source revisions used for that build. The device-specific changes are in [`patches/`](patches/).
+The output directory receives `OrangeFox-R12.0-Unofficial-p3s-May-kernel.tar`, its SHA-256 checksum, and a record of the source revisions used for that build. The device changes and the exact Android platform revisions are in [`patches/`](patches/).
+
+The published recipe was checked against the tested checkout and image. A clean build using the published recipe is still pending verification.
 
 ## Next version
 
