@@ -97,8 +97,12 @@ def verify_crypto_ramdisk(ramdisk):
         raise SystemExit("Recovery does not include the expected Samsung crypto startup services.")
     if b"\non post-fs\n    install_keyring\n" not in init:
         raise SystemExit("Recovery does not initialize the fscrypt session keyring before startup.")
-    hermes = init.rpartition(b"\nservice p3s-hermesd /vendor/bin/hermesd /data/vendor/gatekeeper\n")[2]
-    if b"    disabled\n" not in hermes or b"    socket hermes_secnvm stream 660 system system\n" not in hermes:
+    _, hermes_header, hermes = init.partition(
+        b"\nservice p3s-hermesd /vendor/bin/hermesd /data/vendor/gatekeeper\n"
+    )
+    hermes_options = hermes.partition(b"\n\n")[0].splitlines()
+    if (not hermes_header or b"    disabled" not in hermes_options
+            or b"    socket hermes_secnvm stream 660 system system" not in hermes_options):
         raise SystemExit("Recovery lacks the on-demand Samsung Weaver service.")
     ueventd = entries["vendor/etc/ueventd.rc"]
     if not all(node in ueventd for node in (b"/dev/tzdev", b"/dev/tziwsock", b"/dev/tziwshmem")):
