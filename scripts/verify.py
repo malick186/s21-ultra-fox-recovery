@@ -86,6 +86,8 @@ def verify_crypto_ramdisk(ramdisk):
     init = entries["system/etc/init/p3s-recovery-crypto.rc"]
     if b"service p3s-tzdaemon " not in init or b"service p3s-keymaster " not in init:
         raise SystemExit("Recovery does not include the expected Samsung crypto startup services.")
+    if b"\non post-fs\n    install_keyring\n" not in init:
+        raise SystemExit("Recovery does not initialize the fscrypt session keyring before startup.")
     ueventd = entries["vendor/etc/ueventd.rc"]
     if not all(node in ueventd for node in (b"/dev/tzdev", b"/dev/tziwsock", b"/dev/tziwshmem")):
         raise SystemExit("Recovery does not include the Samsung TEEGRIS device permissions.")

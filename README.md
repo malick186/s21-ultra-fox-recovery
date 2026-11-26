@@ -25,7 +25,7 @@ Run the following from the repository root.
 bash scripts/build.sh "$HOME/orangefox-p3s-build" "$HOME/orangefox-p3s-artifacts"
 ```
 
-The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test4.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
+The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test5.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
 
 The published recipe was checked against the tested checkout and image. A clean build using the published recipe is still pending verification.
 
@@ -37,10 +37,14 @@ Test 2 booted into OrangeFox and USB ADB worked. Samsung Keymaster 4.0 registere
 
 Test 3 booted, USB ADB worked, and Samsung Keymaster 4.0 registered within the new 25-second timeout. Keystore2 could not read its ODM VINTF manifest path because the mounted vendor's `/vendor/odm` link returned to `/odm`, while recovery's fallback `/odm/etc` link pointed into `/vendor/odm/etc`. Encrypted `/data` remained unmounted. TWRP was restored and encrypted storage was accessible again in Android 17.
 
-## Test 4
+## Test 4 device results
 
-Test 4 mounts the phone's existing logical `/odm` partition read-only before starting the Samsung crypto services. This covers the fallback links with the real ODM filesystem so Keystore2 can resolve its VINTF paths. Recovery stops the decryption attempt if the read-only mount fails. Test 4 retains the Test 3 Keymaster deadline, kernel, modules, USB configuration, recovery fstab, and existing-key safeguards.
+Test 4 booted and USB ADB worked. Recovery mounted the real `/odm` partition read-only, both Keymaster and Keystore2 registered, and the metadata-encrypted F2FS `/data` volume mounted through a device mapper. Device-encrypted key setup then failed because recovery's session lacked the `fscrypt` keyring. TWRP was restored and encrypted storage was accessible again in Android 17.
 
-On-device acceptance requires recovery boot, USB ADB, a read-only `/odm` mount, Keystore2 registration, a mapped F2FS `/data` mount, and read access to existing credential-encrypted storage after the owner enters their usual PIN. Keep the original recovery available for rollback. Test 4 decryption on the Android 17 ROM is pending device verification.
+## Test 5
+
+Test 5 uses Android init's `install_keyring` command before the recovery process starts. It creates the missing empty `fscrypt` session keyring in kernel memory. The kernel, modules, USB configuration, ODM fix, recovery fstab, and safeguards for existing encryption keys carry over from Test 4.
+
+On-device acceptance requires recovery boot, USB ADB, a mapped F2FS `/data` mount, successful device-encrypted key setup, and read access to existing credential-encrypted storage after the owner enters their usual PIN. Keep the original recovery available for rollback. Test 5 decryption on the Android 17 ROM is pending device verification.
 
 See [NOTICE.md](NOTICE.md) for attribution and upstream licensing information.

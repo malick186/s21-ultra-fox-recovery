@@ -78,9 +78,10 @@ diff --git a/recovery/root/system/etc/init/p3s-recovery-crypto.rc b/recovery/roo
 new file mode 100644
 --- /dev/null
 +++ b/recovery/root/system/etc/init/p3s-recovery-crypto.rc
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,35 @@
 +# The partitions stay under recovery's control. Start only the stock TEE and crypto HALs.
 +on post-fs
++    install_keyring
 +    mkdir /dev/socket/iwt 0770 system system
 +    mkdir /dev/socket/iwt/ca 0770 system system
 +
