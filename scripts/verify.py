@@ -74,6 +74,8 @@ def verify_crypto_ramdisk(ramdisk):
     )
     if not all(marker in recovery for marker in markers):
         raise SystemExit("Recovery executable lacks the expected FBE or metadata decryption code.")
+    if b"ODM partition mounted read-only for p3s storage decryption" not in recovery:
+        raise SystemExit("Recovery executable lacks the read-only ODM mount for crypto startup.")
     manifest = ET.fromstring(entries["vendor/etc/vintf/manifest.xml"])
     hals = {hal.findtext("name"): hal for hal in manifest.findall("hal")}
     keymaster = hals.get("android.hardware.keymaster")

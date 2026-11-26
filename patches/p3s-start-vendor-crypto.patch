@@ -38,7 +38,7 @@ diff --git a/partitionmanager.cpp b/partitionmanager.cpp
  	#endif
  #endif
  #endif
-@@ -669,19 +672,114 @@
+@@ -669,19 +672,122 @@
  	return true;
  }
  
@@ -75,7 +75,7 @@ diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 +	return true;
 +}
 +
-+static bool Start_P3s_Crypto_Services(TWPartition* vendor) {
++static bool Start_P3s_Crypto_Services(TWPartition* vendor, TWPartition* odm) {
 +	using namespace std::chrono_literals;
 +	using ::android::base::SetProperty;
 +	using ::android::base::WaitForProperty;
@@ -88,6 +88,14 @@ diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 +		LOGERR("Unable to prepare the mounted vendor for p3s storage decryption\n");
 +		return false;
 +	}
++	// Samsung's /vendor/odm points back to /odm. Mount the real partition before VINTF runs.
++	if (odm)
++		odm->Change_Mount_Read_Only(true);
++	if (!odm || !odm->Mount(false) || !Is_Read_Only_Crypto_Mount("/odm")) {
++		LOGERR("Unable to mount the ODM partition read-only for p3s storage decryption\n");
++		return false;
++	}
++	LOGINFO("ODM partition mounted read-only for p3s storage decryption\n");
 +	if (!SetProperty("ctl.start", "p3s-tzdaemon") || !WaitForProperty("vendor.tzdaemon", "Ready", 5s)) {
 +		LOGERR("Samsung TEEGRIS did not become ready in recovery\n");
 +		return false;
@@ -152,12 +160,12 @@ diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 +				LOGERR("Unable to access existing metadata encryption keys: '%s'\n", key_directory.c_str());
 +				return;
 +			}
-+			if (!Start_P3s_Crypto_Services(Find_Partition_By_Path("/vendor")))
++			if (!Start_P3s_Crypto_Services(Find_Partition_By_Path("/vendor"), Find_Partition_By_Path("/odm")))
 +				return;
  			if (android::vold::fscrypt_mount_metadata_encrypted(Decrypt_Data->Actual_Block_Device, Decrypt_Data->Mount_Point, false, false, Decrypt_Data->Current_File_System, TWFunc::Path_Exists(additional_fstab) ? additional_fstab : "")) {
  				std::string crypto_blkdev = android::base::GetProperty("ro.crypto.fs_crypto_blkdev", "error");
  				Decrypt_Data->Decrypted_Block_Device = crypto_blkdev;
-@@ -694,13 +792,17 @@
+@@ -694,13 +800,17 @@
  				if (Decrypt_Data->Mount(false)) {
  					if (!Decrypt_Data->Decrypt_FBE_DE()) {
  						LOGERR("Unable to decrypt FBE device\n");
@@ -175,13 +183,14 @@ diff --git a/partitionmanager.cpp b/partitionmanager.cpp
  			}
  #else
  			LOGERR("Metadata FBE decrypt support not present in this build\n");
-@@ -2346,6 +2448,11 @@
+@@ -2346,6 +2456,12 @@
    if (DataManager::GetIntValue(TW_IS_FBE))
      {
  #ifdef TW_INCLUDE_FBE
 +#ifdef TW_INCLUDE_FBE_METADATA_DECRYPT
 +		TWPartition* data = Find_Partition_By_Path("/data");
-+		if (data && !data->Key_Directory.empty() && !Start_P3s_Crypto_Services(Find_Partition_By_Path("/vendor")))
++		if (data && !data->Key_Directory.empty() &&
++		    !Start_P3s_Crypto_Services(Find_Partition_By_Path("/vendor"), Find_Partition_By_Path("/odm")))
 +			return -1;
 +#endif
  		if (!Mount_By_Path("/data", true)) // /data has to be mounted for FBE

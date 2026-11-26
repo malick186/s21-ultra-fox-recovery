@@ -25,7 +25,7 @@ Run the following from the repository root.
 bash scripts/build.sh "$HOME/orangefox-p3s-build" "$HOME/orangefox-p3s-artifacts"
 ```
 
-The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test3.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
+The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test4.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
 
 The published recipe was checked against the tested checkout and image. A clean build using the published recipe is still pending verification.
 
@@ -33,10 +33,14 @@ The published recipe was checked against the tested checkout and image. A clean 
 
 Test 2 booted into OrangeFox and USB ADB worked. Samsung Keymaster 4.0 registered about 13 seconds after launch, following a wait for StrongBox. Recovery's five-second timeout stopped the attempt before it mounted `/data`. The previous TWRP was restored, and encrypted storage was accessible after booting Android 17 again.
 
-## Test 3
+## Test 3 device results
 
-Test 3 allows 25 seconds for Samsung Keymaster 4.0 registration and logs when Keymaster and Keystore2 register. It retains the Test 2 kernel, modules, USB configuration, and filesystem definitions. It mounts `/metadata` read-only, uses the existing encryption keys, and stops if those keys are unavailable or require an upgrade. The recovery ramdisk uses maximum gzip compression to stay within the 64 MiB partition.
+Test 3 booted, USB ADB worked, and Samsung Keymaster 4.0 registered within the new 25-second timeout. Keystore2 could not read its ODM VINTF manifest path because the mounted vendor's `/vendor/odm` link returned to `/odm`, while recovery's fallback `/odm/etc` link pointed into `/vendor/odm/etc`. Encrypted `/data` remained unmounted. TWRP was restored and encrypted storage was accessible again in Android 17.
 
-On-device acceptance requires recovery boot, USB ADB, a working F2FS `/data` mount through the mapped volume, and read access to existing credential-encrypted storage after the owner enters their usual PIN. Keep the original recovery available for rollback. Test 3 decryption on the Android 17 ROM is pending device verification.
+## Test 4
+
+Test 4 mounts the phone's existing logical `/odm` partition read-only before starting the Samsung crypto services. This covers the fallback links with the real ODM filesystem so Keystore2 can resolve its VINTF paths. Recovery stops the decryption attempt if the read-only mount fails. Test 4 retains the Test 3 Keymaster deadline, kernel, modules, USB configuration, recovery fstab, and existing-key safeguards.
+
+On-device acceptance requires recovery boot, USB ADB, a read-only `/odm` mount, Keystore2 registration, a mapped F2FS `/data` mount, and read access to existing credential-encrypted storage after the owner enters their usual PIN. Keep the original recovery available for rollback. Test 4 decryption on the Android 17 ROM is pending device verification.
 
 See [NOTICE.md](NOTICE.md) for attribution and upstream licensing information.
