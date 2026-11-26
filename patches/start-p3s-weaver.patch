@@ -1,0 +1,120 @@
+diff --git a/Weaver1.cpp b/Weaver1.cpp
+--- a/Weaver1.cpp
++++ b/Weaver1.cpp
+@@ -30,6 +30,14 @@
+ 
+ #include <android/hardware/weaver/1.0/IWeaver.h>
+ 
++#include <android-base/properties.h>
++#include <android-base/scopeguard.h>
++#include <chrono>
++#include <cstdio>
++#include <sys/mount.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
+ #include <iostream>
+ #define ERROR 1
+ #define LOG(x) std::cout
+@@ -47,9 +55,98 @@
+ namespace android {
+ namespace vold {
+ 
+-Weaver::Weaver() {
+-	mDevice = ::android::hardware::weaver::V1_0::IWeaver::getService();
+-	GottenConfig = false;
++namespace {
++
++constexpr const char* kHermesState = "/data/vendor/gatekeeper";
++constexpr const char* kHermesFirmware = "/vendor/etc/secnvm";
++constexpr const char* kHermesRam = "/tmp/p3s-hermes";
++constexpr const char* kHermesUpper = "/tmp/p3s-hermes/upper";
++constexpr const char* kHermesWork = "/tmp/p3s-hermes/work";
++constexpr const char* kEmptyFirmware = "/tmp/p3s-hermes/firmware";
++constexpr auto kHermesMountFlags = MS_NODEV | MS_NOSUID | MS_NOEXEC;
++
++bool PrepareP3sWeaver() {
++    struct stat state {};
++    struct stat firmware {};
++    struct stat secure_element {};
++    struct stat recovery_namespace {};
++    struct stat init_namespace {};
++    if (stat("/proc/self/ns/mnt", &recovery_namespace) != 0 ||
++        stat("/proc/1/ns/mnt", &init_namespace) != 0 ||
++        recovery_namespace.st_ino != init_namespace.st_ino) {
++        std::printf("Samsung Weaver requires the recovery init mount namespace\n");
++        return false;
++    }
++    if (lstat(kHermesState, &state) != 0 || !S_ISDIR(state.st_mode) ||
++        lstat(kHermesFirmware, &firmware) != 0 || !S_ISDIR(firmware.st_mode) ||
++        stat("/dev/k250a", &secure_element) != 0 || !S_ISCHR(secure_element.st_mode)) {
++        std::printf("Samsung Weaver requires the existing state, vendor firmware directory, and K250A device\n");
++        return false;
++    }
++    if (mkdir(kHermesRam, 0700) != 0) {
++        std::perror("Unable to create the temporary Samsung Weaver directory");
++        return false;
++    }
++    if (mount("tmpfs", kHermesRam, "tmpfs", kHermesMountFlags, "mode=0700,size=4m") != 0) {
++        std::perror("Unable to prepare temporary Samsung Weaver storage");
++        rmdir(kHermesRam);
++        return false;
++    }
++    auto ram_cleanup = ::android::base::make_scope_guard([] {
++        umount2(kHermesRam, MNT_DETACH);
++        rmdir(kHermesRam);
++    });
++    if (mkdir(kHermesUpper, 0700) != 0 || mkdir(kHermesWork, 0700) != 0 ||
++        mkdir(kEmptyFirmware, 0755) != 0 ||
++        chown(kHermesUpper, state.st_uid, state.st_gid) != 0 ||
++        chmod(kHermesUpper, state.st_mode & 0777) != 0 ||
++        mount(kEmptyFirmware, kHermesFirmware, nullptr, MS_BIND, nullptr) != 0) {
++        std::perror("Unable to prepare protected Samsung Weaver paths");
++        return false;
++    }
++    auto firmware_cleanup = ::android::base::make_scope_guard([] {
++        umount2(kHermesFirmware, MNT_DETACH);
++    });
++    if (mount(nullptr, kHermesFirmware, nullptr, MS_REMOUNT | MS_BIND | MS_RDONLY, nullptr) != 0) {
++        std::perror("Unable to mask Samsung Weaver firmware update files");
++        return false;
++    }
++    // Hermes can update its working files, while the existing files stay in the lower layer.
++    constexpr const char* overlay = "lowerdir=/data/vendor/gatekeeper,"
++                                    "upperdir=/tmp/p3s-hermes/upper,workdir=/tmp/p3s-hermes/work";
++    if (mount("overlay", kHermesState, "overlay", kHermesMountFlags, overlay) != 0) {
++        std::perror("Unable to isolate Samsung Weaver state writes");
++        return false;
++    }
++    firmware_cleanup.Disable();
++    ram_cleanup.Disable();
++    std::printf("Samsung Weaver state and firmware paths protected for recovery\n");
++    return true;
++}
++
++}  // namespace
++
++Weaver::Weaver() : GottenConfig(false) {
++    using namespace std::chrono_literals;
++    static const bool paths_ready = PrepareP3sWeaver();
++    if (!paths_ready) return;
++
++    mDevice = IWeaver::tryGetService();
++    if (mDevice) return;
++    if (!::android::base::SetProperty("ctl.start", "p3s-hermesd")) {
++        std::printf("Unable to start the Samsung Weaver service\n");
++        return;
++    }
++    const auto deadline = std::chrono::steady_clock::now() + 10s;
++    do {
++        mDevice = IWeaver::tryGetService();
++        if (mDevice) {
++            std::printf("Samsung Weaver 1.0 registered in recovery\n");
++            return;
++        }
++        usleep(100000);
++    } while (std::chrono::steady_clock::now() < deadline);
++    std::printf("Samsung Weaver 1.0 did not register in recovery\n");
+ }
+ 
+ bool Weaver::GetConfig() {

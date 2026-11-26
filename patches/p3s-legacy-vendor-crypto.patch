@@ -10,7 +10,7 @@ diff --git a/recovery/root/vendor/etc/vintf/manifest.xml b/recovery/root/vendor/
  <manifest version="4.0" type="device" target-level="6">
      <hal format="hidl">
          <name>android.hardware.gatekeeper</name>
-@@ -14,56 +9,14 @@
+@@ -14,56 +9,19 @@
          </interface>
          <fqname>@1.0::IGatekeeper/default</fqname>
      </hal>
@@ -66,6 +66,11 @@ diff --git a/recovery/root/vendor/etc/vintf/manifest.xml b/recovery/root/vendor/
 +        <transport>hwbinder</transport>
 +        <version>4.0</version>
 +        <fqname>@4.0::IKeymasterDevice/default</fqname>
++    </hal>
++    <hal format="hidl">
++        <name>android.hardware.weaver</name>
++        <transport>hwbinder</transport>
++        <fqname>@1.0::IWeaver/default</fqname>
      </hal>
      <sepolicy>
          <version>32.0</version>
@@ -78,7 +83,7 @@ diff --git a/recovery/root/system/etc/init/p3s-recovery-crypto.rc b/recovery/roo
 new file mode 100644
 --- /dev/null
 +++ b/recovery/root/system/etc/init/p3s-recovery-crypto.rc
-@@ -0,0 +1,35 @@
+@@ -0,0 +1,45 @@
 +# The partitions stay under recovery's control. Start only the stock TEE and crypto HALs.
 +on post-fs
 +    install_keyring
@@ -114,10 +119,20 @@ new file mode 100644
 +    disabled
 +    seclabel u:r:recovery:s0
 +    setenv LD_LIBRARY_PATH /vendor/lib64:/vendor/lib64/hw:/system/lib64
++
++service p3s-hermesd /vendor/bin/hermesd /data/vendor/gatekeeper
++    user system
++    group system 5678
++    socket hermes_secnvm stream 660 system system
++    capabilities WAKE_ALARM
++    disabled
++    oneshot
++    seclabel u:r:recovery:s0
++    setenv LD_LIBRARY_PATH /vendor/lib64:/vendor/lib64/hw:/system/lib64
 diff --git a/recovery/root/vendor/etc/ueventd.rc b/recovery/root/vendor/etc/ueventd.rc
 --- a/recovery/root/vendor/etc/ueventd.rc
 +++ b/recovery/root/vendor/etc/ueventd.rc
-@@ -80,3 +80,10 @@
+@@ -80,3 +80,11 @@
  
  # USB 
  /dev/ttyGS*                 0660   system       system
@@ -128,3 +143,4 @@ diff --git a/recovery/root/vendor/etc/ueventd.rc b/recovery/root/vendor/etc/ueve
 +/dev/tziwshmem   0660 system system
 +/dev/tzirs       0660 system system
 +/dev/ssp         0660 system system
++/dev/k250a       0660 system system

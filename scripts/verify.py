@@ -38,6 +38,8 @@ def verify_crypto_ramdisk(ramdisk):
         "system/lib64/android.hardware.keymaster@3.0.so",
         "system/lib64/android.hardware.keymaster@4.0.so",
         "system/lib64/android.hardware.keymaster@4.1.so",
+        "system/lib64/android.hardware.weaver@1.0.so",
+        "lib/modules/snvm.ko",
         "vendor/etc/ueventd.rc",
         "vendor/etc/vintf/manifest.xml",
     }
@@ -70,6 +72,8 @@ def verify_crypto_ramdisk(ramdisk):
         b"Samsung Keymaster 4.0 did not register within %lld seconds in recovery",
         b"Samsung Keymaster 4.0 registered in recovery",
         b"Recovery Keystore2 registered",
+        b"Samsung Weaver state and firmware paths protected for recovery",
+        b"Samsung Weaver 1.0 registered in recovery",
         b"No existing file-encrypted user 0 key on /data",
     )
     if not all(marker in recovery for marker in markers):
@@ -83,14 +87,24 @@ def verify_crypto_ramdisk(ramdisk):
             or keymaster.get("format") != "hidl"
             or keymaster.findtext("fqname") != "@4.0::IKeymasterDevice/default"):
         raise SystemExit("Recovery does not declare the expected Samsung vendor Keymaster interface.")
+    weaver = hals.get("android.hardware.weaver")
+    if (weaver is None or weaver.get("format") != "hidl"
+            or weaver.findtext("transport") != "hwbinder"
+            or weaver.findtext("fqname") != "@1.0::IWeaver/default"):
+        raise SystemExit("Recovery does not declare Samsung Weaver 1.0.")
     init = entries["system/etc/init/p3s-recovery-crypto.rc"]
     if b"service p3s-tzdaemon " not in init or b"service p3s-keymaster " not in init:
         raise SystemExit("Recovery does not include the expected Samsung crypto startup services.")
     if b"\non post-fs\n    install_keyring\n" not in init:
         raise SystemExit("Recovery does not initialize the fscrypt session keyring before startup.")
+    hermes = init.rpartition(b"\nservice p3s-hermesd /vendor/bin/hermesd /data/vendor/gatekeeper\n")[2]
+    if b"    disabled\n" not in hermes or b"    socket hermes_secnvm stream 660 system system\n" not in hermes:
+        raise SystemExit("Recovery lacks the on-demand Samsung Weaver service.")
     ueventd = entries["vendor/etc/ueventd.rc"]
     if not all(node in ueventd for node in (b"/dev/tzdev", b"/dev/tziwsock", b"/dev/tziwshmem")):
         raise SystemExit("Recovery does not include the Samsung TEEGRIS device permissions.")
+    if b"/dev/k250a       0660 system system\n" not in ueventd:
+        raise SystemExit("Recovery lacks the Samsung secure-element device permissions.")
     keystore_init = entries["system/etc/init/keystore2.rc"]
     if b"    disabled\n" not in keystore_init or b"    start keystore2\n" in keystore_init:
         raise SystemExit("Keystore2 is not gated on Samsung Keymaster readiness.")

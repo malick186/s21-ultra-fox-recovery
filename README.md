@@ -25,7 +25,7 @@ Run the following from the repository root.
 bash scripts/build.sh "$HOME/orangefox-p3s-build" "$HOME/orangefox-p3s-artifacts"
 ```
 
-The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test5.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
+The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test6.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
 
 The published recipe was checked against the tested checkout and image. A clean build using the published recipe is still pending verification.
 
@@ -41,10 +41,14 @@ Test 3 booted, USB ADB worked, and Samsung Keymaster 4.0 registered within the n
 
 Test 4 booted and USB ADB worked. Recovery mounted the real `/odm` partition read-only, both Keymaster and Keystore2 registered, and the metadata-encrypted F2FS `/data` volume mounted through a device mapper. Device-encrypted key setup then failed because recovery's session lacked the `fscrypt` keyring. TWRP was restored and encrypted storage was accessible again in Android 17.
 
-## Test 5
+## Test 5 device results
 
-Test 5 uses Android init's `install_keyring` command before the recovery process starts. It creates the missing empty `fscrypt` session keyring in kernel memory. The kernel, modules, USB configuration, ODM fix, recovery fstab, and safeguards for existing encryption keys carry over from Test 4.
+Test 5 booted, USB ADB worked, and recovery mounted `/data` and loaded the device-encrypted key. Credential-encrypted access stopped because recovery could not find the Samsung Weaver service. TWRP was restored and encrypted storage remained accessible in Android 17.
 
-On-device acceptance requires recovery boot, USB ADB, a mapped F2FS `/data` mount, successful device-encrypted key setup, and read access to existing credential-encrypted storage after the owner enters their usual PIN. Keep the original recovery available for rollback. Test 5 decryption on the Android 17 ROM is pending device verification.
+## Test 6
+
+Test 6 declares Weaver 1.0 and starts the installed Samsung `hermesd` on demand when the existing enrollment requires Weaver. It gives Hermes a temporary RAM overlay for its existing state directory and masks the vendor's secure-element firmware files during recovery. Recovery stops the attempt if those protections cannot be set up or the service does not register. Test 6 retains the working kernel, modules, USB configuration, recovery fstab, and existing-key safeguards.
+
+On-device acceptance requires recovery boot, USB ADB, mapped F2FS `/data`, device-encrypted key setup, Weaver registration, and read access to existing credential-encrypted storage after the owner enters their usual PIN. Keep the original recovery available for rollback. Test 6 decryption on the Android 17 ROM is pending device verification.
 
 See [NOTICE.md](NOTICE.md) for attribution and upstream licensing information.

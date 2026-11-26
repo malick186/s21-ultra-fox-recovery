@@ -150,6 +150,7 @@ apply_patch "$device_dir" p3s-legacy-vendor-crypto.patch
 apply_patch "$source_dir/bootable/recovery" p3s-start-vendor-crypto.patch
 apply_patch "$source_dir/system/vold" guard-recovery-key-upgrade.patch
 apply_patch "$source_dir/system/vold" read-existing-storage-keys.patch
+apply_patch "$source_dir/system/vold" start-p3s-weaver.patch
 apply_patch "$source_dir/system/security" refuse-storage-key-upgrade.patch
 apply_patch "$source_dir/build/make" compress-recovery-ramdisk.patch
 apply_patch "$source_dir/build/make" stage-current-keystore2.patch
@@ -168,7 +169,7 @@ mka "-j$build_jobs" recoveryimage
 product_dir="$OUT_DIR/target/product/p3s"
 python3 "$project_root/scripts/verify.py" image "$product_dir/recovery.img" "$KERNEL_SHA256"
 
-name=OrangeFox-R12.0-Unofficial-p3s-Test5
+name=OrangeFox-R12.0-Unofficial-p3s-Test6
 tar --format=ustar -cf "$output_dir/$name.tar.partial" -C "$product_dir" recovery.img
 [[ $(tar -tf "$output_dir/$name.tar.partial") == recovery.img ]]
 {
