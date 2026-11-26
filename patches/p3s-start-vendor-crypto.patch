@@ -1,0 +1,186 @@
+diff --git a/Android.mk b/Android.mk
+--- a/Android.mk
++++ b/Android.mk
+@@ -345,6 +345,7 @@
+         android.hardware.oemlock@1.0 libf2fs_sparseblock libbinder libbinder_ndk \
+         libandroidicu.recovery \
+         android.hardware.gatekeeper@1.0 \
++        android.hardware.keymaster@4.0 \
+         android.hardware.weaver@1.0 \
+         android.frameworks.stats@1.0 \
+         android.security.maintenance-ndk_platform \
+diff --git a/etc/init/keystore2.rc b/etc/init/keystore2.rc
+--- a/etc/init/keystore2.rc
++++ b/etc/init/keystore2.rc
+@@ -6,11 +6,9 @@
+ #
+ # See system/core/init/README.md for information on the init.rc language.
+ 
+-on late-init
+-    start keystore2
+-
+ service keystore2 /system/bin/keystore2 /tmp/misc/keystore
+     class early_hal
++    disabled
+     user root
+     group keystore readproc log
+     writepid /dev/cpuset/foreground/tasks
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -109,6 +109,9 @@
+ 	#include "cryptfs.h"
+ 	#include "fscrypt-common.h"	
+ 	#include "MetadataCrypt.h"
++	#include <sys/statvfs.h>
++	#include <android/binder_manager.h>
++	#include <android/hardware/keymaster/4.0/IKeymasterDevice.h>
+ 	#endif
+ #endif
+ #endif
+@@ -669,19 +672,111 @@
+ 	return true;
+ }
+ 
++#ifdef TW_INCLUDE_FBE_METADATA_DECRYPT
++static bool Is_Read_Only_Crypto_Mount(const char* path) {
++	struct statvfs mount_info {};
++	return statvfs(path, &mount_info) == 0 && (mount_info.f_flag & ST_RDONLY);
++}
++
++static bool Copy_P3s_Crypto_Properties() {
++	static bool properties_ready = false;
++	if (properties_ready)
++		return true;
++
++	std::string release = TWFunc::System_Property_Get("ro.system.build.version.release");
++	if (release.empty())
++		release = TWFunc::System_Property_Get("ro.build.version.release");
++	const std::string patch = TWFunc::System_Property_Get("ro.build.version.security_patch");
++	const std::string vendor_patch = TWFunc::Partition_Property_Get("ro.vendor.build.security_patch", PartitionManager, "/vendor", "build.prop");
++	if (release.empty() || patch.empty() || vendor_patch.empty() || patch == "2099-12-31" || vendor_patch == "2099-12-31") {
++		LOGERR("Unable to read installed Android and vendor security versions for p3s Keymaster\n");
++		return false;
++	}
++	if (TWFunc::Property_Override("ro.build.version.release", release) != 0 ||
++	    TWFunc::Property_Override("ro.build.version.security_patch", patch) != 0 ||
++	    TWFunc::Property_Override("ro.vendor.build.security_patch", vendor_patch) != 0 ||
++	    ::android::base::GetProperty("ro.build.version.release", "") != release ||
++	    ::android::base::GetProperty("ro.build.version.security_patch", "") != patch ||
++	    ::android::base::GetProperty("ro.vendor.build.security_patch", "") != vendor_patch) {
++		LOGERR("Unable to apply installed security versions for p3s Keymaster\n");
++		return false;
++	}
++	properties_ready = true;
++	return true;
++}
++
++static bool Start_P3s_Crypto_Services(TWPartition* vendor) {
++	using namespace std::chrono_literals;
++	using ::android::base::SetProperty;
++	using ::android::base::WaitForProperty;
++	using ::android::hardware::keymaster::V4_0::IKeymasterDevice;
++	constexpr auto keystore_service = "android.system.keystore2.IKeystoreService/default";
++
++	if (vendor)
++		vendor->Change_Mount_Read_Only(true);
++	if (!vendor || !vendor->Mount(false) || !Is_Read_Only_Crypto_Mount("/vendor") || !Copy_P3s_Crypto_Properties()) {
++		LOGERR("Unable to prepare the mounted vendor for p3s storage decryption\n");
++		return false;
++	}
++	if (!SetProperty("ctl.start", "p3s-tzdaemon") || !WaitForProperty("vendor.tzdaemon", "Ready", 5s)) {
++		LOGERR("Samsung TEEGRIS did not become ready in recovery\n");
++		return false;
++	}
++	SetProperty("vendor.TEEGRIS.loaded", "true");
++	SetProperty("ctl.start", "p3s-tzts");
++	SetProperty("ctl.start", "p3s-gatekeeper");
++	if (!WaitForProperty("hwservicemanager.ready", "true", 2s) || !SetProperty("ctl.start", "p3s-keymaster")) {
++		LOGERR("Unable to start Samsung Keymaster 4.0\n");
++		return false;
++	}
++	const auto keymaster_deadline = std::chrono::steady_clock::now() + 5s;
++	while (!IKeymasterDevice::tryGetService()) {
++		if (std::chrono::steady_clock::now() >= keymaster_deadline) {
++			LOGERR("Samsung Keymaster 4.0 did not register in recovery\n");
++			return false;
++		}
++		usleep(100000);
++	}
++	if (!SetProperty("ctl.start", "keystore2")) {
++		LOGERR("Unable to start recovery Keystore2\n");
++		return false;
++	}
++	const auto keystore_deadline = std::chrono::steady_clock::now() + 5s;
++	do {
++		if (AIBinder* keystore = AServiceManager_checkService(keystore_service)) {
++			AIBinder_decStrong(keystore);
++			return true;
++		}
++		usleep(100000);
++	} while (std::chrono::steady_clock::now() < keystore_deadline);
++	LOGERR("Recovery Keystore2 did not register\n");
++	return false;
++}
++#endif
++
+ void TWPartitionManager::Decrypt_Data() {
+ 	#ifdef TW_INCLUDE_CRYPTO
+ 	TWPartition* Decrypt_Data = Find_Partition_By_Path("/data");
+ 	if (Decrypt_Data && Decrypt_Data->Is_Encrypted && !Decrypt_Data->Is_Decrypted) {
+ 		Set_Crypto_State();
+-		TWPartition* Key_Directory_Partition = Find_Partition_By_Path(Decrypt_Data->Key_Directory);
+-		if (Key_Directory_Partition != nullptr)
+-			if (!Key_Directory_Partition->Is_Mounted())
+-				Mount_By_Path(Decrypt_Data->Key_Directory, false);
+ 		if (!Decrypt_Data->Key_Directory.empty()) {
+ 			Set_Crypto_Type("file");
+ #ifdef TW_INCLUDE_FBE_METADATA_DECRYPT
+ #ifdef USE_FSCRYPT
++			const std::string& key_directory = Decrypt_Data->Key_Directory;
++			TWPartition* metadata = Find_Partition_By_Path(key_directory);
++			if (!metadata) {
++				LOGERR("No partition found for metadata encryption keys\n");
++				return;
++			}
++			metadata->Change_Mount_Read_Only(true);
++			if (!metadata->Mount(false) || !Is_Read_Only_Crypto_Mount(metadata->Mount_Point.c_str()) ||
++			    !TWFunc::Path_Exists(key_directory + "/key/version")) {
++				LOGERR("Unable to access existing metadata encryption keys: '%s'\n", key_directory.c_str());
++				return;
++			}
++			if (!Start_P3s_Crypto_Services(Find_Partition_By_Path("/vendor")))
++				return;
+ 			if (android::vold::fscrypt_mount_metadata_encrypted(Decrypt_Data->Actual_Block_Device, Decrypt_Data->Mount_Point, false, false, Decrypt_Data->Current_File_System, TWFunc::Path_Exists(additional_fstab) ? additional_fstab : "")) {
+ 				std::string crypto_blkdev = android::base::GetProperty("ro.crypto.fs_crypto_blkdev", "error");
+ 				Decrypt_Data->Decrypted_Block_Device = crypto_blkdev;
+@@ -694,13 +789,17 @@
+ 				if (Decrypt_Data->Mount(false)) {
+ 					if (!Decrypt_Data->Decrypt_FBE_DE()) {
+ 						LOGERR("Unable to decrypt FBE device\n");
++						return;
+ 					}
+ 
+ 				} else {
++					Decrypt_Data->Is_Decrypted = false;
+ 					LOGINFO("Failed to mount data after metadata decrypt\n");
++					return;
+ 				}
+ 			} else {
+ 				LOGINFO("Unable to decrypt metadata encryption\n");
++				return;
+ 			}
+ #else
+ 			LOGERR("Metadata FBE decrypt support not present in this build\n");
+@@ -2346,6 +2445,11 @@
+   if (DataManager::GetIntValue(TW_IS_FBE))
+     {
+ #ifdef TW_INCLUDE_FBE
++#ifdef TW_INCLUDE_FBE_METADATA_DECRYPT
++		TWPartition* data = Find_Partition_By_Path("/data");
++		if (data && !data->Key_Directory.empty() && !Start_P3s_Crypto_Services(Find_Partition_By_Path("/vendor")))
++			return -1;
++#endif
+ 		if (!Mount_By_Path("/data", true)) // /data has to be mounted for FBE
+ 			return -1;
+ 

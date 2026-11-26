@@ -1,0 +1,12 @@
+diff --git a/core/Makefile b/core/Makefile
+--- a/core/Makefile
++++ b/core/Makefile
+@@ -2335,7 +2335,7 @@ $(recovery_uncompressed_ramdisk): $(INTERNAL_RECOVERY_RAMDISK_FILES_TIMESTAMP)
+ 	$(MKBOOTFS) -d $(TARGET_OUT) $(TARGET_RECOVERY_ROOT_OUT) > $@
+ 
+ $(recovery_ramdisk): $(recovery_uncompressed_ramdisk) $(COMPRESSION_COMMAND_DEPS)
+ 	@echo ----- Making compressed recovery ramdisk ------
+-	$(COMPRESSION_COMMAND) < $(recovery_uncompressed_ramdisk) > $@
++	$(COMPRESSION_COMMAND) $(if $(filter $(MINIGZIP),$(COMPRESSION_COMMAND)),-9) < $(recovery_uncompressed_ramdisk) > $@
+ 
+ # $(1): output file
