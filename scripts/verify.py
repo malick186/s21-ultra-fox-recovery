@@ -72,8 +72,9 @@ def verify_crypto_ramdisk(ramdisk):
         b"Samsung Keymaster 4.0 did not register within %lld seconds in recovery",
         b"Samsung Keymaster 4.0 registered in recovery",
         b"Recovery Keystore2 registered",
-        b"Samsung Weaver state and firmware paths protected for recovery",
+        b"Samsung Weaver RAM snapshot and read-only firmware mask verified",
         b"Samsung Weaver 1.0 registered in recovery",
+        b"Samsung Weaver stopped after the credential check",
         b"No existing file-encrypted user 0 key on /data",
     )
     if not all(marker in recovery for marker in markers):

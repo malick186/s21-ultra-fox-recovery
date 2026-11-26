@@ -25,7 +25,7 @@ Run the following from the repository root.
 bash scripts/build.sh "$HOME/orangefox-p3s-build" "$HOME/orangefox-p3s-artifacts"
 ```
 
-The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test6.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
+The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test7.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
 
 The published recipe was checked against the tested checkout and image. A clean build using the published recipe is still pending verification.
 
@@ -45,10 +45,14 @@ Test 4 booted and USB ADB worked. Recovery mounted the real `/odm` partition rea
 
 Test 5 booted, USB ADB worked, and recovery mounted `/data` and loaded the device-encrypted key. Credential-encrypted access stopped because recovery could not find the Samsung Weaver service. TWRP was restored and encrypted storage remained accessible in Android 17.
 
-## Test 6
+## Test 6 device results
 
-Test 6 declares Weaver 1.0 and starts the installed Samsung `hermesd` on demand when the existing enrollment requires Weaver. It gives Hermes a temporary RAM overlay for its existing state directory and masks the vendor's secure-element firmware files during recovery. Recovery stops the attempt if those protections cannot be set up or the service does not register. Test 6 retains the working kernel, modules, USB configuration, recovery fstab, and existing-key safeguards.
+Test 6 booted, USB ADB worked, and `/data` mounted with its device-encrypted key. The kernel rejected `/data/vendor/gatekeeper` as an OverlayFS source, so recovery stopped before launching Samsung Weaver or verifying the PIN. TWRP was restored, and encrypted storage remained accessible in Android 17.
 
-On-device acceptance requires recovery boot, USB ADB, mapped F2FS `/data`, device-encrypted key setup, Weaver registration, and read access to existing credential-encrypted storage after the owner enters their usual PIN. Keep the original recovery available for rollback. Test 6 decryption on the Android 17 ROM is pending device verification.
+## Test 7
+
+Test 7 copies the existing flat Weaver state directory into bounded tmpfs and verifies the RAM copy is bind-mounted at the path Samsung `hermesd` uses. It maintains the read-only mask over the vendor firmware-update files, stops Hermes after the credential check, and retains the protective mounts if shutdown cannot be confirmed. The working kernel, modules, USB configuration, recovery fstab, and existing-key safeguards carry over.
+
+On-device acceptance requires recovery boot, USB ADB, mapped F2FS `/data`, successful device-encrypted key setup, Weaver registration, and read access to existing credential-encrypted storage after the owner enters their usual PIN. Keep the original recovery available for rollback. Test 7 decryption on the Android 17 ROM is pending device verification.
 
 See [NOTICE.md](NOTICE.md) for attribution and upstream licensing information.

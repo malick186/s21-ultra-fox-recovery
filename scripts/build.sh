@@ -169,7 +169,7 @@ mka "-j$build_jobs" recoveryimage
 product_dir="$OUT_DIR/target/product/p3s"
 python3 "$project_root/scripts/verify.py" image "$product_dir/recovery.img" "$KERNEL_SHA256"
 
-name=OrangeFox-R12.0-Unofficial-p3s-Test6
+name=OrangeFox-R12.0-Unofficial-p3s-Test7
 tar --format=ustar -cf "$output_dir/$name.tar.partial" -C "$product_dir" recovery.img
 [[ $(tar -tf "$output_dir/$name.tar.partial") == recovery.img ]]
 {
