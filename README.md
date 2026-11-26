@@ -25,14 +25,18 @@ Run the following from the repository root.
 bash scripts/build.sh "$HOME/orangefox-p3s-build" "$HOME/orangefox-p3s-artifacts"
 ```
 
-The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test2.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
+The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test3.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
 
 The published recipe was checked against the tested checkout and image. A clean build using the published recipe is still pending verification.
 
-## Test 2
+## Test 2 device results
 
-Test 2 enables file-based and metadata encryption support with Samsung's TEEGRIS and HIDL Keymaster 4.0 from the mounted vendor partition. Recovery opens the existing metadata key directory on a read-only mount and begins the key operation after Keymaster and Keystore2 register. If the keys are unavailable or a storage key blob requires upgrading, the attempt stops. Recovery reads the existing device and user keys without generating replacement keys or cleaning up old credential keys. Test 2 retains the Test 1 kernel, modules, USB configuration, and filesystem definitions. The recovery ramdisk uses maximum gzip compression to stay within the 64 MiB partition.
+Test 2 booted into OrangeFox and USB ADB worked. Samsung Keymaster 4.0 registered about 13 seconds after launch, following a wait for StrongBox. Recovery's five-second timeout stopped the attempt before it mounted `/data`. The previous TWRP was restored, and encrypted storage was accessible after booting Android 17 again.
 
-On-device acceptance requires recovery boot, USB ADB, a working F2FS `/data` mount through the mapped volume, and access to an existing test file after the owner unlocks credential-encrypted storage. Test against the existing encrypted storage and retain the original recovery for rollback. Decryption on the tested Android 17 ROM is pending device verification.
+## Test 3
+
+Test 3 allows 25 seconds for Samsung Keymaster 4.0 registration and logs when Keymaster and Keystore2 register. It retains the Test 2 kernel, modules, USB configuration, and filesystem definitions. It mounts `/metadata` read-only, uses the existing encryption keys, and stops if those keys are unavailable or require an upgrade. The recovery ramdisk uses maximum gzip compression to stay within the 64 MiB partition.
+
+On-device acceptance requires recovery boot, USB ADB, a working F2FS `/data` mount through the mapped volume, and read access to existing credential-encrypted storage after the owner enters their usual PIN. Keep the original recovery available for rollback. Test 3 decryption on the Android 17 ROM is pending device verification.
 
 See [NOTICE.md](NOTICE.md) for attribution and upstream licensing information.

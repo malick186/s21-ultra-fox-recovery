@@ -38,7 +38,7 @@ diff --git a/partitionmanager.cpp b/partitionmanager.cpp
  	#endif
  #endif
  #endif
-@@ -669,19 +672,111 @@
+@@ -669,19 +672,114 @@
  	return true;
  }
  
@@ -99,14 +99,16 @@ diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 +		LOGERR("Unable to start Samsung Keymaster 4.0\n");
 +		return false;
 +	}
-+	const auto keymaster_deadline = std::chrono::steady_clock::now() + 5s;
++	constexpr auto keymaster_timeout = 25s;
++	const auto keymaster_deadline = std::chrono::steady_clock::now() + keymaster_timeout;
 +	while (!IKeymasterDevice::tryGetService()) {
 +		if (std::chrono::steady_clock::now() >= keymaster_deadline) {
-+			LOGERR("Samsung Keymaster 4.0 did not register in recovery\n");
++			LOGERR("Samsung Keymaster 4.0 did not register within %lld seconds in recovery\n", static_cast<long long>(keymaster_timeout.count()));
 +			return false;
 +		}
 +		usleep(100000);
 +	}
++	LOGINFO("Samsung Keymaster 4.0 registered in recovery\n");
 +	if (!SetProperty("ctl.start", "keystore2")) {
 +		LOGERR("Unable to start recovery Keystore2\n");
 +		return false;
@@ -115,6 +117,7 @@ diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 +	do {
 +		if (AIBinder* keystore = AServiceManager_checkService(keystore_service)) {
 +			AIBinder_decStrong(keystore);
++			LOGINFO("Recovery Keystore2 registered\n");
 +			return true;
 +		}
 +		usleep(100000);
@@ -154,7 +157,7 @@ diff --git a/partitionmanager.cpp b/partitionmanager.cpp
  			if (android::vold::fscrypt_mount_metadata_encrypted(Decrypt_Data->Actual_Block_Device, Decrypt_Data->Mount_Point, false, false, Decrypt_Data->Current_File_System, TWFunc::Path_Exists(additional_fstab) ? additional_fstab : "")) {
  				std::string crypto_blkdev = android::base::GetProperty("ro.crypto.fs_crypto_blkdev", "error");
  				Decrypt_Data->Decrypted_Block_Device = crypto_blkdev;
-@@ -694,13 +789,17 @@
+@@ -694,13 +792,17 @@
  				if (Decrypt_Data->Mount(false)) {
  					if (!Decrypt_Data->Decrypt_FBE_DE()) {
  						LOGERR("Unable to decrypt FBE device\n");
@@ -172,7 +175,7 @@ diff --git a/partitionmanager.cpp b/partitionmanager.cpp
  			}
  #else
  			LOGERR("Metadata FBE decrypt support not present in this build\n");
-@@ -2346,6 +2445,11 @@
+@@ -2346,6 +2448,11 @@
    if (DataManager::GetIntValue(TW_IS_FBE))
      {
  #ifdef TW_INCLUDE_FBE

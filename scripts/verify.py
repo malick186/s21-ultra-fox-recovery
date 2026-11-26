@@ -67,7 +67,9 @@ def verify_crypto_ramdisk(ramdisk):
         b"twrp.user.",
         b"Successfully decrypted metadata encrypted data partition",
         b"Unable to access existing metadata encryption keys",
-        b"Samsung Keymaster 4.0 did not register in recovery",
+        b"Samsung Keymaster 4.0 did not register within %lld seconds in recovery",
+        b"Samsung Keymaster 4.0 registered in recovery",
+        b"Recovery Keystore2 registered",
         b"No existing file-encrypted user 0 key on /data",
     )
     if not all(marker in recovery for marker in markers):
