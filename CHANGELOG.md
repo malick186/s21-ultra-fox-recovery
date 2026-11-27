@@ -1,6 +1,16 @@
-# OrangeFox R12.0 changelog
+# S21 Ultra Fox Recovery changelog
 
-Unofficial builds for the Samsung Galaxy S21 Ultra 5G Exynos (`SM-G998B`, `p3s`). Device results are from one phone running a custom Android 17 ROM. Recovery boot and USB ADB worked in all eleven tests. Test 11 was the first to confirm PIN-based access to credential-encrypted `/data`. The original TWRP was restored after Tests 1–10.
+Unofficial builds for the Samsung Galaxy S21 Ultra 5G Exynos (`SM-G998B`, `p3s`). R13 is this community project's release number. OrangeFox R12.0 remains the recovery base.
+
+## R13 Stable
+
+Packaged the Test 11 recovery for public installation on compatible, already-unlocked SM-G998B phones. Test 11 passed boot, USB ADB, and existing-PIN decryption of credential-encrypted `/data` on one custom Android 17 setup. USB ADB connected after toggling MTP.
+
+Replaced the workstation hostname in the recovery image with a generic build-host value, verified the recovery contents, and regenerated the Odin TAR and checksums. The historical downloads for Tests 1–11 were sanitized the same way. Use the checksums attached to the current downloads.
+
+[Download R13 Stable](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r13.0-p3s-stable) · [Installation guide](INSTALL.md)
+
+Device results below are from the same SM-G998B running a custom Android 17 ROM. Recovery boot and USB ADB worked in all eleven tests. The original TWRP was restored after Tests 1–10.
 
 ## Test 11
 

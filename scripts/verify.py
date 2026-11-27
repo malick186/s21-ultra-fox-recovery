@@ -127,6 +127,8 @@ def verify_crypto_ramdisk(ramdisk):
     if (b"Recovery will not upgrade a storage key blob" not in keystore
             or b"Recovery will not upgrade a wrapped storage key blob" not in keystore):
         raise SystemExit("Recovery Keystore2 lacks the storage-key upgrade guard.")
+    if b"ro.build.host=build-host" not in entries["prop.default"].splitlines():
+        raise SystemExit("Recovery contains unexpected build-host metadata.")
     delete_keys_prop = b"ro.crypto.metadata_init_delete_all_keys.enabled="
     for prop in entries["prop.default"].splitlines():
         if prop.startswith(delete_keys_prop) and prop.removeprefix(delete_keys_prop).strip() not in (b"false", b"0"):

@@ -1,14 +1,12 @@
 # S21 Ultra Fox Recovery
 
-Unofficial OrangeFox R12.0 for the Samsung Galaxy S21 Ultra 5G Exynos (`SM-G998B`, `p3s`). Source revisions are recorded in [`sources.env`](sources.env).
+**R13 Stable** is the S21 Ultra Fox Recovery community release for the Samsung Galaxy S21 Ultra 5G Exynos (`SM-G998B`, `p3s`). The recovery is based on OrangeFox R12.0, which is the version shown on the device.
 
-**Test 11 is the first build in this series to pass recovery boot, USB ADB, and PIN-based `/data` decryption.** This was verified on one SM-G998B running a custom Android 17 ROM. USB ADB connected after toggling MTP.
+The release uses Test 11's recovery code, kernel, and USB setup. Test 11 passed recovery boot, USB ADB, and PIN-based access to credential-encrypted `/data` on one SM-G998B running a custom Android 17 ROM with bootloader `G998BXXSJHZC2`. USB ADB connected after toggling MTP. R13 replaces the workstation build hostname with a generic value and updates the image checksums.
 
-[Download Test 11](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r12.0-p3s-test11) · [Changelog for Tests 1–11](CHANGELOG.md) · [All releases](https://github.com/malick186/s21-ultra-fox-recovery/releases)
+[Download R13 Stable](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r13.0-p3s-stable) · [Install and roll back](INSTALL.md) · [Full changelog](CHANGELOG.md) · [XDA post draft](docs/XDA.md)
 
-Each prerelease includes a recovery-only Odin TAR, the matching raw recovery image, SHA-256 checksums, and a record of the build inputs.
-
-This branch contains the Test 11 build recipe and the source history for the storage decryption tests.
+The release includes a recovery-only Odin TAR, the matching raw recovery image, SHA-256 checksums, and a record of the build inputs. The install guide covers upgrading an existing custom recovery on an unlocked SM-G998B.
 
 ## Build
 
@@ -22,8 +20,8 @@ Run the following from the repository root.
 bash scripts/build.sh "$HOME/orangefox-p3s-build" "$HOME/orangefox-p3s-artifacts"
 ```
 
-The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test11.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
+The build produces an R13 Odin TAR, raw recovery image, SHA-256 checksums, and a build-input record. [`sources.env`](sources.env) and [`patches/`](patches/) specify the source inputs. The public downloads come from repackaging the Test 11 image with generic build-host metadata using [`scripts/sanitize-release.py`](scripts/sanitize-release.py).
 
-The published recipe was checked against the tested checkout and image. A clean build using the published recipe is still pending verification.
+The Test 11 recipe was verified with the pinned build cache. A fresh build may have different image hashes because Android embeds build metadata.
 
 See [NOTICE.md](NOTICE.md) for attribution and upstream licensing information.

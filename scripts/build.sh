@@ -33,6 +33,7 @@ sync_stamp="$build_root/.p3s-source-sync-complete"
 trap 'code=$?; printf "Build stopped at line %s (exit %s).\n" "$LINENO" "$code" >&2' ERR
 
 export LC_ALL=C GIT_TERMINAL_PROMPT=0
+export BUILD_HOSTNAME=build-host BUILD_USERNAME=android-build
 export FOX_BUILD_DEVICE=p3s
 export ALLOW_MISSING_DEPENDENCIES=true
 export OF_DISABLE_MIUI_SPECIFIC_FEATURES=1
@@ -171,7 +172,7 @@ mka "-j$build_jobs" recoveryimage
 product_dir="$OUT_DIR/target/product/p3s"
 python3 "$project_root/scripts/verify.py" image "$product_dir/recovery.img" "$KERNEL_SHA256"
 
-name=OrangeFox-R12.0-Unofficial-p3s-Test11
+name=S21-Ultra-Fox-Recovery-R13-Stable-p3s
 tar --format=ustar -cf "$output_dir/$name.tar.partial" -C "$product_dir" recovery.img
 [[ $(tar -tf "$output_dir/$name.tar.partial") == recovery.img ]]
 {

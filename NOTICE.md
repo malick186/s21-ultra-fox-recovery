@@ -4,5 +4,6 @@ This is an unofficial device-specific build recipe for OrangeFox Recovery. The O
 
 - Recovery sources and build tooling come from the OrangeFox project. [Recovery source](https://gitlab.com/OrangeFox/bootable/Recovery) · [Vendor build tree](https://gitlab.com/OrangeFox/vendor/recovery) · [Sync tooling](https://gitlab.com/OrangeFox/sync)
 - The Samsung Exynos 2100 device configuration and matching `p3s` kernel and module inputs come from xfwdrev's upstream device tree. [Upstream Exynos device tree](https://github.com/xfwdrev/android_device_samsung_exynos2100_ofox)
+- The device-tree maintainer identifies the ChicletKernel source repository and its recovery build option. The release records the exact device-tree prebuilt revision and kernel binary SHA-256. The kernel source repository is the upstream maintainer's published source location. An exact kernel source commit for the supplied prebuilt is unconfirmed. [Kernel source](https://github.com/xfwdrev/android_kernel_samsung_ex2100) · [Pinned prebuilt tree](https://github.com/xfwdrev/android_device_samsung_exynos2100_ofox/tree/7c020092214705138b7fb1331cf6474f24080a2e)
 
 [`sources.env`](sources.env) records the selected upstream revisions, and [`patches/`](patches/) contains the device changes. Each upstream component retains its own copyright notices and applicable license terms.
