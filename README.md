@@ -2,7 +2,7 @@
 
 Unofficial OrangeFox R12.0 for the Samsung Galaxy S21 Ultra 5G Exynos (`SM-G998B`, `p3s`). Source revisions are recorded in [`sources.env`](sources.env).
 
-This branch contains the Test 8 build recipe and the source history for the storage decryption tests.
+This branch contains the Test 9 build recipe and the source history for the storage decryption tests.
 
 ## Test prereleases
 
@@ -20,7 +20,9 @@ Recovery boot and USB ADB worked in all seven tests on the same SM-G998B with a 
 | [Test 6](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r12.0-p3s-test6) | [`r12.0-p3s-test6`](https://github.com/malick186/s21-ultra-fox-recovery/tree/r12.0-p3s-test6) | `/data` mounted. The kernel rejected the Weaver state overlay before Hermes could start. |
 | [Test 7](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r12.0-p3s-test7) | [`r12.0-p3s-test7`](https://github.com/malick186/s21-ultra-fox-recovery/tree/r12.0-p3s-test7) | `/data` mounted. The Weaver RAM copy stayed empty and Hermes never started. Credential-encrypted folders stayed locked. |
 
-Test 8 opens the existing Weaver state directory read-only before setting up the RAM snapshot. It checks the directory identity again before starting Hermes and records where preparation stops if it fails. Device verification is pending.
+Test 8 booted and USB ADB connected. `/data` mounted, and recovery still reported the credential-encrypted storage as locked after PIN entry. The verified TWRP image was restored.
+
+Test 9 decodes Android's Weaver slot record and checks the slot against the hardware range before verifying the PIN. It checks for a running Weaver instance without requesting lazy startup and reports an error if recovery cannot find the requested FBE user. Device verification is pending.
 
 ## Build
 
@@ -34,7 +36,7 @@ Run the following from the repository root.
 bash scripts/build.sh "$HOME/orangefox-p3s-build" "$HOME/orangefox-p3s-artifacts"
 ```
 
-The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test8.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
+The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test9.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
 
 The published recipe was checked against the tested checkout and image. A clean build using the published recipe is still pending verification.
 
