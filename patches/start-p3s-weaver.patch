@@ -1,21 +1,28 @@
 diff --git a/Weaver1.cpp b/Weaver1.cpp
 --- a/Weaver1.cpp
 +++ b/Weaver1.cpp
-@@ -30,6 +30,25 @@
+@@ -29,6 +29,31 @@
+ //#include <keystore/keystore_hidl_support.h>
  
  #include <android/hardware/weaver/1.0/IWeaver.h>
- 
++#include <android/hidl/manager/1.0/IServiceManager.h>
++#include <hidl/ServiceManagement.h>
++
 +#include <android-base/properties.h>
 +#include <android-base/file.h>
 +#include <android-base/scopeguard.h>
 +#include <algorithm>
++#include <atomic>
 +#include <cerrno>
 +#include <chrono>
++#include <condition_variable>
 +#include <cstdio>
 +#include <cstring>
 +#include <dirent.h>
 +#include <fcntl.h>
 +#include <linux/magic.h>
++#include <mutex>
++#include <pthread.h>
 +#include <sys/mount.h>
 +#include <sys/stat.h>
 +#include <sys/statvfs.h>
@@ -23,11 +30,10 @@ diff --git a/Weaver1.cpp b/Weaver1.cpp
 +#include <unistd.h>
 +
 +#include "KeyBuffer.h"
-+
+ 
  #include <iostream>
  #define ERROR 1
- #define LOG(x) std::cout
-@@ -47,9 +66,238 @@
+@@ -47,9 +72,343 @@
  namespace android {
  namespace vold {
  
@@ -137,36 +143,101 @@ diff --git a/Weaver1.cpp b/Weaver1.cpp
 +    }
 +}
 +
-+bool PrepareP3sWeaver() {
-+    struct stat state {};
++using WeaverStateDirectory = std::unique_ptr<DIR, decltype(&closedir)>;
++
++WeaverStateDirectory OpenP3sWeaverState(const char* phase, struct stat& state,
++                                       const std::atomic_bool* cancelled = nullptr) {
++    const auto start = [&](const char* step) {
++        if (cancelled && cancelled->load()) return false;
++        std::printf("Samsung Weaver %s: %s started\n", phase, step);
++        return true;
++    };
++    const auto finish = [&](const char* step, int error) {
++        if (cancelled && cancelled->load()) return false;
++        if (error != 0) {
++            std::printf("Samsung Weaver %s: %s failed (errno=%d)\n", phase, step, error);
++            return false;
++        }
++        std::printf("Samsung Weaver %s: %s passed\n", phase, step);
++        return true;
++    };
++    const auto stat_path = [&](const char* step, const char* path, struct stat& info, bool follow) {
++        if (!start(step)) return false;
++        const int result = follow ? stat(path, &info) : lstat(path, &info);
++        return finish(step, result == 0 ? 0 : errno);
++    };
++
++    WeaverStateDirectory entries(nullptr, closedir);
 +    struct stat firmware {};
 +    struct stat secure_element {};
 +    struct stat recovery_namespace {};
 +    struct stat init_namespace {};
-+    if (stat("/proc/self/ns/mnt", &recovery_namespace) != 0 ||
-+        stat("/proc/1/ns/mnt", &init_namespace) != 0 ||
-+        recovery_namespace.st_ino != init_namespace.st_ino) {
-+        std::printf("Samsung Weaver requires the recovery init mount namespace\n");
-+        return false;
++    if (!stat_path("stat recovery mount namespace", "/proc/self/ns/mnt", recovery_namespace, true) ||
++        !stat_path("stat init mount namespace", "/proc/1/ns/mnt", init_namespace, true)) {
++        return entries;
 +    }
-+    if (lstat(kHermesFirmware, &firmware) != 0 || !S_ISDIR(firmware.st_mode) ||
-+        stat("/dev/k250a", &secure_element) != 0 || !S_ISCHR(secure_element.st_mode)) {
-+        std::printf("Samsung Weaver requires the vendor firmware directory and K250A device\n");
-+        return false;
++    if (recovery_namespace.st_ino != init_namespace.st_ino) {
++        std::printf("Samsung Weaver %s: recovery and init mount namespaces differ\n", phase);
++        return entries;
 +    }
++    if (!stat_path("lstat vendor firmware directory", kHermesFirmware, firmware, false)) return entries;
++    if (!S_ISDIR(firmware.st_mode)) {
++        std::printf("Samsung Weaver %s: vendor firmware path is not a directory\n", phase);
++        return entries;
++    }
++    if (!stat_path("stat K250A device", "/dev/k250a", secure_element, true)) return entries;
++    if (!S_ISCHR(secure_element.st_mode)) {
++        std::printf("Samsung Weaver %s: K250A path is not a character device\n", phase);
++        return entries;
++    }
++
++    constexpr auto open_step = "open existing state directory read-only";
++    constexpr auto stat_step = "fstat existing state directory";
++    constexpr auto stream_step = "fdopendir existing state directory";
 +    // Pin the source before any mount changes and read all entries relative to it.
-+    ::android::base::unique_fd source(open(kHermesState, O_RDONLY | O_DIRECTORY | O_NOFOLLOW |
-+                                                                   O_NOATIME | O_CLOEXEC));
-+    if (source == -1 || fstat(source.get(), &state) != 0) {
-+        std::perror("Unable to open the existing Samsung Weaver state directory read-only");
-+        return false;
++    if (!start(open_step)) return entries;
++    const int fd = open(kHermesState, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_NOATIME | O_CLOEXEC);
++    const int open_error = fd == -1 ? errno : 0;
++    ::android::base::unique_fd source(fd);
++    if (!finish(open_step, open_error) || !start(stat_step)) return entries;
++
++    const int stat_result = fstat(source.get(), &state);
++    if (!finish(stat_step, stat_result == 0 ? 0 : errno) || !start(stream_step)) return entries;
++    DIR* directory = fdopendir(source.get());
++    const int stream_error = directory ? 0 : errno;
++    if (directory) {
++        static_cast<void>(source.release());
++        entries.reset(directory);
 +    }
-+    std::unique_ptr<DIR, decltype(&closedir)> entries(fdopendir(source.get()), closedir);
-+    if (!entries) {
-+        std::perror("Unable to prepare the existing Samsung Weaver state directory for reading");
-+        return false;
++    if (!finish(stream_step, stream_error)) entries.reset();
++    return entries;
++}
++
++struct WeaverPreflight {
++    std::mutex lock;
++    std::condition_variable completion;
++    std::atomic_bool cancelled{false};
++    bool started = false;
++    bool finished = false;
++};
++
++void* CheckP3sWeaverPreflight(void* context) {
++    auto& probe = *static_cast<WeaverPreflight*>(context);
++    struct stat state {};
++    const bool readable = static_cast<bool>(OpenP3sWeaverState("pre-PIN", state, &probe.cancelled));
++    std::lock_guard<std::mutex> lock(probe.lock);
++    if (!probe.cancelled.load()) {
++        std::printf("Samsung Weaver pre-PIN probe complete: %s\n", readable ? "ready" : "blocked");
 +    }
-+    static_cast<void>(source.release());
++    probe.finished = true;
++    probe.completion.notify_one();
++    return nullptr;
++}
++
++bool PrepareP3sWeaver() {
++    struct stat state {};
++    auto entries = OpenP3sWeaverState("credential", state);
++    if (!entries) return false;
 +    std::printf("Opened existing Samsung Weaver state read-only\n");
 +    if (mkdir(kHermesRam, 0700) != 0) {
 +        std::perror("Unable to create the temporary Samsung Weaver directory");
@@ -228,12 +299,52 @@ diff --git a/Weaver1.cpp b/Weaver1.cpp
 +
 +}  // namespace
 +
++void RunP3sWeaverPreflight() {
++    // A filesystem call may outlive the wait. Keep its shared state for the process lifetime.
++    static WeaverPreflight& probe = *new WeaverPreflight;
++    std::unique_lock<std::mutex> lock(probe.lock);
++    if (probe.started) return;
++    probe.started = true;
++
++    pthread_t worker;
++    const int error = pthread_create(&worker, nullptr, CheckP3sWeaverPreflight, &probe);
++    if (error != 0) {
++        std::printf("Samsung Weaver pre-PIN probe could not start (error=%d)\n", error);
++        return;
++    }
++    pthread_detach(worker);
++    // Keep the prompt reachable even if a filesystem operation stalls.
++    if (!probe.completion.wait_for(lock, std::chrono::seconds(1), [] { return probe.finished; })) {
++        probe.cancelled.store(true);
++        std::printf("Samsung Weaver pre-PIN probe timed out after 1 second\n");
++    }
++}
++
 +Weaver::Weaver() : GottenConfig(false) {
 +    using namespace std::chrono_literals;
-+    if (IWeaver::tryGetService()) {
++    // A typed lookup can request lazy startup. Check registrations without starting a HAL.
++    std::printf("Checking Samsung Weaver registration before protected startup\n");
++    const auto manager = ::android::hardware::defaultServiceManager();
++    if (!manager) {
++        std::printf("Unable to reach the Samsung Weaver hardware service manager\n");
++        return;
++    }
++    bool listed = false;
++    bool default_registered = false;
++    const auto status = manager->listByInterface(IWeaver::descriptor, [&](const auto& instances) {
++        listed = true;
++        default_registered = std::any_of(instances.begin(), instances.end(),
++                                         [](const auto& instance) { return instance == "default"; });
++    });
++    if (!status.isOk() || !listed) {
++        std::printf("Unable to check for a running Samsung Weaver service\n");
++        return;
++    }
++    if (default_registered) {
 +        std::printf("Samsung Weaver was already running before protected startup\n");
 +        return;
 +    }
++    std::printf("Samsung Weaver inactive before protected startup\n");
 +    if (!PrepareP3sWeaver()) return;
 +    paths_prepared_ = true;
 +    if (!::android::base::SetProperty("ctl.start", "p3s-hermesd")) {
@@ -272,7 +383,13 @@ diff --git a/Weaver1.cpp b/Weaver1.cpp
 diff --git a/Weaver1.h b/Weaver1.h
 --- a/Weaver1.h
 +++ b/Weaver1.h
-@@ -39,6 +39,7 @@
+@@ -35,10 +35,13 @@
+ namespace vold {
+ using ::android::hardware::weaver::V1_0::IWeaver;
+ 
++void RunP3sWeaverPreflight();
++
+ // Wrapper for a Weaver device
  class Weaver {
  	public:
  		Weaver();
@@ -280,7 +397,7 @@ diff --git a/Weaver1.h b/Weaver1.h
  		// false if we failed to open the weaver device.
  		explicit operator bool() { return mDevice.get() != nullptr; }
  
-@@ -52,6 +53,7 @@
+@@ -52,6 +55,7 @@
  		sp<hardware::weaver::V1_0::IWeaver> mDevice;
  		hardware::weaver::V1_0::WeaverConfig config;
  		bool GottenConfig;

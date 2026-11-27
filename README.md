@@ -2,7 +2,7 @@
 
 Unofficial OrangeFox R12.0 for the Samsung Galaxy S21 Ultra 5G Exynos (`SM-G998B`, `p3s`). Source revisions are recorded in [`sources.env`](sources.env).
 
-This branch contains the Test 9 build recipe and the source history for the storage decryption tests.
+This branch contains the Test 10 build recipe and the source history for the storage decryption tests.
 
 ## Test prereleases
 
@@ -22,7 +22,9 @@ Recovery boot and USB ADB worked in all seven tests on the same SM-G998B with a 
 
 Test 8 booted and USB ADB connected. `/data` mounted, and recovery still reported the credential-encrypted storage as locked after PIN entry. The verified TWRP image was restored.
 
-Test 9 decodes Android's Weaver slot record and checks the slot against the hardware range before verifying the PIN. It checks for a running Weaver instance without requesting lazy startup and reports an error if recovery cannot find the requested FBE user. Device verification is pending.
+Test 9 booted, USB ADB connected, and the Weaver slot decoded successfully. Credential-encrypted storage stayed locked, and Hermes did not register. The verified TWRP image was restored.
+
+Test 10 logs the mount namespace, firmware directory, K250A device and read-only Weaver state checks before PIN entry. A stalled pre-PIN probe stops delaying startup after one second. The checks also run during credential verification before the existing protected Hermes startup. Device verification is pending.
 
 ## Build
 
@@ -36,7 +38,7 @@ Run the following from the repository root.
 bash scripts/build.sh "$HOME/orangefox-p3s-build" "$HOME/orangefox-p3s-artifacts"
 ```
 
-The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test9.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
+The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test10.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
 
 The published recipe was checked against the tested checkout and image. A clean build using the published recipe is still pending verification.
 
