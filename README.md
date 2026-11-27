@@ -2,7 +2,7 @@
 
 Unofficial OrangeFox R12.0 for the Samsung Galaxy S21 Ultra 5G Exynos (`SM-G998B`, `p3s`). Source revisions are recorded in [`sources.env`](sources.env).
 
-This branch contains the Test 10 build recipe and the source history for the storage decryption tests.
+This branch contains the Test 11 build recipe and the source history for the storage decryption tests.
 
 ## Test prereleases
 
@@ -24,7 +24,9 @@ Test 8 booted and USB ADB connected. `/data` mounted, and recovery still reporte
 
 Test 9 booted, USB ADB connected, and the Weaver slot decoded successfully. Credential-encrypted storage stayed locked, and Hermes did not register. The verified TWRP image was restored.
 
-Test 10 logs the mount namespace, firmware directory, K250A device and read-only Weaver state checks before PIN entry. A stalled pre-PIN probe stops delaying startup after one second. The checks also run during credential verification before the existing protected Hermes startup. Device verification is pending.
+Test 10 booted and connected over USB. The mount namespace, firmware directory, K250A node, and read-only Weaver directory checks passed up to `fdopendir`. Android's file-descriptor sanitizer then aborted recovery before Hermes started. The verified TWRP image was restored.
+
+Test 11 uses Android's `Fdopendir` helper to transfer the directory descriptor from `unique_fd` before Bionic takes ownership. The pre-PIN diagnostics and protected Hermes startup remain in place. Device verification is pending.
 
 ## Build
 
@@ -38,7 +40,7 @@ Run the following from the repository root.
 bash scripts/build.sh "$HOME/orangefox-p3s-build" "$HOME/orangefox-p3s-artifacts"
 ```
 
-The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test10.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
+The output directory receives `OrangeFox-R12.0-Unofficial-p3s-Test11.tar`, the corresponding raw recovery image, their SHA-256 checksums, and a record of the source revisions and patches used for the build. The device changes and Android platform revisions are in [`patches/`](patches/).
 
 The published recipe was checked against the tested checkout and image. A clean build using the published recipe is still pending verification.
 

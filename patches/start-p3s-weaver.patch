@@ -1,7 +1,7 @@
 diff --git a/Weaver1.cpp b/Weaver1.cpp
 --- a/Weaver1.cpp
 +++ b/Weaver1.cpp
-@@ -29,6 +29,31 @@
+@@ -29,6 +29,33 @@
  //#include <keystore/keystore_hidl_support.h>
  
  #include <android/hardware/weaver/1.0/IWeaver.h>
@@ -11,6 +11,7 @@ diff --git a/Weaver1.cpp b/Weaver1.cpp
 +#include <android-base/properties.h>
 +#include <android-base/file.h>
 +#include <android-base/scopeguard.h>
++#include <android-base/unique_fd.h>
 +#include <algorithm>
 +#include <atomic>
 +#include <cerrno>
@@ -28,12 +29,13 @@ diff --git a/Weaver1.cpp b/Weaver1.cpp
 +#include <sys/statvfs.h>
 +#include <sys/vfs.h>
 +#include <unistd.h>
++#include <utility>
 +
 +#include "KeyBuffer.h"
  
  #include <iostream>
  #define ERROR 1
-@@ -47,9 +72,343 @@
+@@ -47,9 +74,341 @@
  namespace android {
  namespace vold {
  
@@ -203,12 +205,10 @@ diff --git a/Weaver1.cpp b/Weaver1.cpp
 +
 +    const int stat_result = fstat(source.get(), &state);
 +    if (!finish(stat_step, stat_result == 0 ? 0 : errno) || !start(stream_step)) return entries;
-+    DIR* directory = fdopendir(source.get());
++    // Transfer the descriptor before Bionic assigns its directory stream owner tag.
++    DIR* directory = ::android::base::Fdopendir(std::move(source));
 +    const int stream_error = directory ? 0 : errno;
-+    if (directory) {
-+        static_cast<void>(source.release());
-+        entries.reset(directory);
-+    }
++    entries.reset(directory);
 +    if (!finish(stream_step, stream_error)) entries.reset();
 +    return entries;
 +}
