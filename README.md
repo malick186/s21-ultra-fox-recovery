@@ -2,23 +2,13 @@
 
 Unofficial OrangeFox R12.0 for the Samsung Galaxy S21 Ultra 5G Exynos (`SM-G998B`, `p3s`). Source revisions are recorded in [`sources.env`](sources.env).
 
-This branch contains the Test 1 build recipe with the tested May kernel. Development for Tests 2–7 is on [`v2-storage-decryption`](https://github.com/malick186/s21-ultra-fox-recovery/tree/v2-storage-decryption).
+**Test 11 is the first build in this series to pass recovery boot, USB ADB, and PIN-based `/data` decryption.** This was verified on one SM-G998B running a custom Android 17 ROM. USB ADB connected after toggling MTP.
 
-## Test prereleases
+[Download Test 11](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r12.0-p3s-test11) · [Changelog for Tests 1–11](CHANGELOG.md) · [All releases](https://github.com/malick186/s21-ultra-fox-recovery/releases)
 
-Each release includes the recovery-only Odin TAR, the matching raw recovery image, SHA-256 checksums, and a build-input record. [All releases](https://github.com/malick186/s21-ultra-fox-recovery/releases)
+Each prerelease includes a recovery-only Odin TAR, the matching raw recovery image, SHA-256 checksums, and a record of the build inputs.
 
-Recovery boot and USB ADB worked in all seven tests on the same SM-G998B with a custom Android 17 ROM. PIN-based access to credential-encrypted storage remains unresolved. The phone was returned to TWRP and encrypted storage was accessible again in Android after the tests.
-
-| Prerelease | Source used for the build | Device result |
-| --- | --- | --- |
-| [Test 1](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r12.0-p3s-test1) | [`r12.0-p3s-test1`](https://github.com/malick186/s21-ultra-fox-recovery/tree/r12.0-p3s-test1) | Encrypted `/data` stayed unmounted. |
-| [Test 2](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r12.0-p3s-test2) | [`r12.0-p3s-test2`](https://github.com/malick186/s21-ultra-fox-recovery/tree/r12.0-p3s-test2) | Keymaster registered after the five-second deadline. `/data` stayed unmounted. |
-| [Test 3](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r12.0-p3s-test3) | [`r12.0-p3s-test3`](https://github.com/malick186/s21-ultra-fox-recovery/tree/r12.0-p3s-test3) | Keymaster registered. Keystore2 hit the ODM VINTF symlink loop before `/data` could mount. |
-| [Test 4](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r12.0-p3s-test4) | [`r12.0-p3s-test4`](https://github.com/malick186/s21-ultra-fox-recovery/tree/r12.0-p3s-test4) | The read-only ODM mount and Keystore2 worked. `/data` mounted, then device-encrypted key setup failed at the fscrypt session keyring. |
-| [Test 5](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r12.0-p3s-test5) | [`r12.0-p3s-test5`](https://github.com/malick186/s21-ultra-fox-recovery/tree/r12.0-p3s-test5) | `/data` mounted and the device-encrypted key loaded. Weaver was unavailable for credential unlock. |
-| [Test 6](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r12.0-p3s-test6) | [`r12.0-p3s-test6`](https://github.com/malick186/s21-ultra-fox-recovery/tree/r12.0-p3s-test6) | `/data` mounted. The kernel rejected the Weaver state overlay before Hermes could start. |
-| [Test 7](https://github.com/malick186/s21-ultra-fox-recovery/releases/tag/r12.0-p3s-test7) | [`r12.0-p3s-test7`](https://github.com/malick186/s21-ultra-fox-recovery/tree/r12.0-p3s-test7) | `/data` mounted. The Weaver RAM copy stayed empty and Hermes never started. Credential-encrypted folders stayed locked. |
+This branch contains the Test 1 build recipe with the tested May kernel. The Test 11 recipe and storage decryption history are on [`v2-storage-decryption`](https://github.com/malick186/s21-ultra-fox-recovery/tree/v2-storage-decryption).
 
 ## Build
 
