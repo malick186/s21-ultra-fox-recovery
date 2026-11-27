@@ -33,6 +33,7 @@ sync_stamp="$build_root/.p3s-source-sync-complete"
 trap 'code=$?; printf "Build stopped at line %s (exit %s).\n" "$LINENO" "$code" >&2' ERR
 
 export LC_ALL=C GIT_TERMINAL_PROMPT=0
+export BUILD_HOSTNAME=build-host BUILD_USERNAME=android-build
 export FOX_BUILD_DEVICE=p3s
 export ALLOW_MISSING_DEPENDENCIES=true
 export OF_DISABLE_MIUI_SPECIFIC_FEATURES=1
@@ -135,6 +136,29 @@ elif ! git -C "$device_dir" apply --unidiff-zero --reverse --check "$device_patc
 fi
 grep -Fxq 'TW_EXTRA_LANGUAGES :=' "$device_dir/BoardConfig.mk"
 
+apply_patch() {
+    local directory=$1 patch="$project_root/patches/$2"
+    if git -C "$directory" apply --check "$patch" 2>/dev/null; then
+        git -C "$directory" apply "$patch"
+    elif ! git -C "$directory" apply --reverse --check "$patch"; then
+        printf 'Patch %s does not match %s.\n' "$patch" "$directory" >&2
+        exit 1
+    fi
+}
+
+apply_patch "$device_dir" enable-recovery-crypto.patch
+apply_patch "$device_dir" p3s-legacy-vendor-crypto.patch
+apply_patch "$source_dir/bootable/recovery" p3s-start-vendor-crypto.patch
+apply_patch "$source_dir/bootable/recovery" require-known-fbe-user.patch
+apply_patch "$source_dir/system/vold" guard-recovery-key-upgrade.patch
+apply_patch "$source_dir/system/vold" read-existing-storage-keys.patch
+apply_patch "$source_dir/system/vold" start-p3s-weaver.patch
+apply_patch "$source_dir/system/vold" verify-weaver-credential.patch
+apply_patch "$source_dir/system/security" refuse-storage-key-upgrade.patch
+apply_patch "$source_dir/build/make" compress-recovery-ramdisk.patch
+apply_patch "$source_dir/build/make" stage-current-keystore2.patch
+grep -Fxq 'TW_INCLUDE_CRYPTO := true' "$device_dir/BoardConfig.mk"
+
 cd -- "$source_dir"
 repo manifest -r -o "$build_root/checkout-revisions.xml"
 python3 "$project_root/scripts/verify.py" platform "$platform_lock" "$build_root/checkout-revisions.xml"
@@ -148,7 +172,7 @@ mka "-j$build_jobs" recoveryimage
 product_dir="$OUT_DIR/target/product/p3s"
 python3 "$project_root/scripts/verify.py" image "$product_dir/recovery.img" "$KERNEL_SHA256"
 
-name=OrangeFox-R12.0-Unofficial-p3s-May-kernel
+name=S21-Ultra-Fox-Recovery-R13-Stable-p3s
 tar --format=ustar -cf "$output_dir/$name.tar.partial" -C "$product_dir" recovery.img
 [[ $(tar -tf "$output_dir/$name.tar.partial") == recovery.img ]]
 {
@@ -156,8 +180,10 @@ tar --format=ustar -cf "$output_dir/$name.tar.partial" -C "$product_dir" recover
     printf 'recovery=%s\nvendor=%s\ndevice=%s\np3s_kernel_and_modules=%s\n' \
         "$RECOVERY_REV" "$VENDOR_REV" "$DEVICE_REV" "$PREBUILT_REV"
     printf 'platform_revisions_sha256=%s\n' "$(sha256sum "$platform_lock" | cut -d ' ' -f1)"
-    git -C "$device_dir" diff -- BoardConfig.mk
+    (cd -- "$project_root" && sha256sum patches/*.patch)
 } > "$output_dir/$name-sources.txt"
+cp -- "$product_dir/recovery.img" "$output_dir/$name-recovery.img.partial"
+mv -- "$output_dir/$name-recovery.img.partial" "$output_dir/$name-recovery.img"
 mv -- "$output_dir/$name.tar.partial" "$output_dir/$name.tar"
-(cd -- "$output_dir" && sha256sum "$name.tar" > "$name.sha256")
+(cd -- "$output_dir" && sha256sum "$name.tar" "$name-recovery.img" > "$name.sha256")
 printf 'Package: %s\n' "$output_dir/$name.tar"

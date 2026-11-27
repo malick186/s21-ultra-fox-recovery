@@ -1,0 +1,29 @@
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -2465,15 +2465,16 @@
+ 		if (!Mount_By_Path("/data", true)) // /data has to be mounted for FBE
+ 			return -1;
+ 
+-		bool user_need_decrypt = false;
+-		std::vector<users_struct>::iterator iter;
+-		for (iter = Users_List.begin(); iter != Users_List.end(); iter++) {
+-			if (atoi((*iter).userId.c_str()) == user_id && !(*iter).isDecrypted) {
+-				user_need_decrypt = true;
+-			}
+-		}
+-		if (!user_need_decrypt) {
+-			LOGINFO("User %d does not require decryption\n", user_id);
++		const auto user_id_string = std::to_string(user_id);
++		const auto user = std::find_if(Users_List.begin(), Users_List.end(), [&](const auto& entry) {
++			return entry.userId == user_id_string;
++		});
++		if (user == Users_List.end()) {
++			LOGERR("FBE user %d is unavailable for decryption\n", user_id);
++			return -1;
++		}
++		if (user->isDecrypted) {
++			LOGINFO("User %d is already decrypted\n", user_id);
+ 			return 0;
+ 		}
+ 

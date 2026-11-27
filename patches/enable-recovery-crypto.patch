@@ -1,0 +1,10 @@
+diff --git a/BoardConfig.mk b/BoardConfig.mk
+--- a/BoardConfig.mk
++++ b/BoardConfig.mk
+@@ -63,5 +63,6 @@
+ # Encryption
+ BOARD_USES_METADATA_PARTITION := true
++TW_INCLUDE_CRYPTO := true
+ PLATFORM_VERSION := 99.87.36
+ PLATFORM_VERSION_LAST_STABLE := $(PLATFORM_VERSION)
+ PLATFORM_SECURITY_PATCH := 2099-12-31

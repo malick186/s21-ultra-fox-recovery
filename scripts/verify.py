@@ -26,6 +26,116 @@ def verify_platform(lock_path, manifest_path):
     print(f"Verified all {len(expected)} Android platform project revisions.")
 
 
+def verify_crypto_ramdisk(ramdisk):
+    required = {
+        "prop.default",
+        "system/bin/recovery",
+        "system/bin/keystore2",
+        "system/bin/vold_prepare_subdirs",
+        "system/etc/init/keystore2.rc",
+        "system/etc/init/p3s-recovery-crypto.rc",
+        "system/lib64/android.hardware.gatekeeper@1.0.so",
+        "system/lib64/android.hardware.keymaster@3.0.so",
+        "system/lib64/android.hardware.keymaster@4.0.so",
+        "system/lib64/android.hardware.keymaster@4.1.so",
+        "system/lib64/android.hardware.weaver@1.0.so",
+        "lib/modules/snvm.ko",
+        "vendor/etc/ueventd.rc",
+        "vendor/etc/vintf/manifest.xml",
+    }
+    entries = {}
+    offset = 0
+    while offset + 110 <= len(ramdisk):
+        if ramdisk[offset:offset + 6] not in (b"070701", b"070702"):
+            raise SystemExit("Invalid CPIO entry in the recovery ramdisk.")
+        size = int(ramdisk[offset + 54:offset + 62], 16)
+        name_size = int(ramdisk[offset + 94:offset + 102], 16)
+        name_end = offset + 110 + name_size
+        data_start = (name_end + 3) & ~3
+        data_end = data_start + size
+        if name_size < 1 or data_end > len(ramdisk):
+            raise SystemExit("Truncated CPIO entry in the recovery ramdisk.")
+        name = ramdisk[offset + 110:name_end - 1].decode().removeprefix("./")
+        if name == "TRAILER!!!":
+            break
+        if name in required:
+            entries[name] = ramdisk[data_start:data_end]
+        offset = (data_end + 3) & ~3
+
+    if missing := required - entries.keys():
+        raise SystemExit(f"Missing recovery crypto components: {', '.join(sorted(missing))}")
+    recovery = entries["system/bin/recovery"]
+    markers = (
+        b"twrp.user.",
+        b"Successfully decrypted metadata encrypted data partition",
+        b"Unable to access existing metadata encryption keys",
+        b"Samsung Keymaster 4.0 did not register within %lld seconds in recovery",
+        b"Samsung Keymaster 4.0 registered in recovery",
+        b"Recovery Keystore2 registered",
+        b"Android Weaver slot metadata decoded",
+        b"Android Weaver slot is outside the hardware range",
+        b"Checking Samsung Weaver registration before protected startup",
+        b"Samsung Weaver pre-PIN probe complete: %s",
+        b"Samsung Weaver pre-PIN probe timed out after 1 second",
+        b"fdopendir existing state directory",
+        b"FBE user %d is unavailable for decryption",
+        b"Opened existing Samsung Weaver state read-only",
+        b"Reading existing Samsung Weaver state into RAM",
+        b"Samsung Weaver state directory changed before the protected bind",
+        b"Samsung Weaver RAM snapshot and read-only firmware mask verified",
+        b"Samsung Weaver 1.0 registered in recovery",
+        b"Samsung Weaver stopped after the credential check",
+        b"No existing file-encrypted user 0 key on /data",
+    )
+    if not all(marker in recovery for marker in markers):
+        raise SystemExit("Recovery executable lacks the expected FBE or metadata decryption code.")
+    if b"ODM partition mounted read-only for p3s storage decryption" not in recovery:
+        raise SystemExit("Recovery executable lacks the read-only ODM mount for crypto startup.")
+    manifest = ET.fromstring(entries["vendor/etc/vintf/manifest.xml"])
+    hals = {hal.findtext("name"): hal for hal in manifest.findall("hal")}
+    keymaster = hals.get("android.hardware.keymaster")
+    if ("android.hardware.security.keymint" in hals or keymaster is None
+            or keymaster.get("format") != "hidl"
+            or keymaster.findtext("fqname") != "@4.0::IKeymasterDevice/default"):
+        raise SystemExit("Recovery does not declare the expected Samsung vendor Keymaster interface.")
+    weaver = hals.get("android.hardware.weaver")
+    if (weaver is None or weaver.get("format") != "hidl"
+            or weaver.findtext("transport") != "hwbinder"
+            or weaver.findtext("fqname") != "@1.0::IWeaver/default"):
+        raise SystemExit("Recovery does not declare Samsung Weaver 1.0.")
+    init = entries["system/etc/init/p3s-recovery-crypto.rc"]
+    if b"service p3s-tzdaemon " not in init or b"service p3s-keymaster " not in init:
+        raise SystemExit("Recovery does not include the expected Samsung crypto startup services.")
+    if b"\non post-fs\n    install_keyring\n" not in init:
+        raise SystemExit("Recovery does not initialize the fscrypt session keyring before startup.")
+    _, hermes_header, hermes = init.partition(
+        b"\nservice p3s-hermesd /vendor/bin/hermesd /data/vendor/gatekeeper\n"
+    )
+    hermes_options = hermes.partition(b"\n\n")[0].splitlines()
+    if (not hermes_header or b"    disabled" not in hermes_options
+            or b"    socket hermes_secnvm stream 660 system system" not in hermes_options):
+        raise SystemExit("Recovery lacks the on-demand Samsung Weaver service.")
+    ueventd = entries["vendor/etc/ueventd.rc"]
+    if not all(node in ueventd for node in (b"/dev/tzdev", b"/dev/tziwsock", b"/dev/tziwshmem")):
+        raise SystemExit("Recovery does not include the Samsung TEEGRIS device permissions.")
+    if b"/dev/k250a       0660 system system\n" not in ueventd:
+        raise SystemExit("Recovery lacks the Samsung secure-element device permissions.")
+    keystore_init = entries["system/etc/init/keystore2.rc"]
+    if b"    disabled\n" not in keystore_init or b"    start keystore2\n" in keystore_init:
+        raise SystemExit("Keystore2 is not gated on Samsung Keymaster readiness.")
+    keystore = entries["system/bin/keystore2"]
+    if (b"Recovery will not upgrade a storage key blob" not in keystore
+            or b"Recovery will not upgrade a wrapped storage key blob" not in keystore):
+        raise SystemExit("Recovery Keystore2 lacks the storage-key upgrade guard.")
+    if b"ro.build.host=build-host" not in entries["prop.default"].splitlines():
+        raise SystemExit("Recovery contains unexpected build-host metadata.")
+    delete_keys_prop = b"ro.crypto.metadata_init_delete_all_keys.enabled="
+    for prop in entries["prop.default"].splitlines():
+        if prop.startswith(delete_keys_prop) and prop.removeprefix(delete_keys_prop).strip() not in (b"false", b"0"):
+            raise SystemExit("Recovery enables metadata key deletion.")
+    print("Verified recovery FBE and metadata decryption components.")
+
+
 def verify_image(image_path, kernel_hash):
     image = image_path.read_bytes()
     if len(image) > 64 * 1024 ** 2:
@@ -46,6 +156,7 @@ def verify_image(image_path, kernel_hash):
     ramdisk = gzip.decompress(image[ramdisk_offset:ramdisk_offset + ramdisk_size])
     if not ramdisk.startswith((b"070701", b"070702")) or b"R12.0" not in ramdisk:
         raise SystemExit("Expected an OrangeFox R12.0 CPIO ramdisk.")
+    verify_crypto_ramdisk(ramdisk)
     print(f"Verified {len(image):,}-byte p3s recovery image and pinned kernel.")
 
 
